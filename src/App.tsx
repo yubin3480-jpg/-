@@ -382,6 +382,28 @@ export default function App() {
         text: "점장님, 이번 달 총 정산액 15% 하락으로 예산 운영에 큰 혼선과 불안감을 드려 송구합니다. 확인 결과 이번 사안은 [공제 항목 명세]에 차액 원인이 기재되어 있어, 이 세부 수치 데이터와 지난달 대비 요율 조견표를 명확히 메일로 전달드리겠습니다. 한 치의 오차가 없도록 재검증하겠습니다.",
         reaction: "점주 납득: '아, 데이터로 투명하게 뽑아서 보여주니 오해가 확실히 풀렸어요. 고맙습니다.'"
       }
+    },
+    {
+      scenario: "발주 물량 미배송 오류",
+      bad: {
+        text: "점장님, 오늘 발주 누락 건은 본사 물류 시스템 오작동 때문입니다. 오늘 바로 추가 배송은 불가능하며, 내일 발주 수량에 일괄 출고될 예정이오니 운영에 참고 바랍니다.",
+        reaction: "점주 분노 폭발: '오늘 아침 장사를 다 망쳤는데 본사 시스템 오류라며 내일 한꺼번에 준다고요? 오늘 당장 해결하거나 오늘 손실 다 보상해 내세요!'"
+      },
+      good: {
+        text: "점장님, 오늘 아침 판매 핵심 상품 배송 누락으로 인해 당장 오전 영업에 큰 지장을 입고 매우 상심하셨을 마음에 가슴 깊이 사과드립니다. 본사 긴급 전담 차량을 별도 수배하여 근처 거점 물류소에서 안전 재고를 오전 11시 전까지 점포로 다이렉트 직배송해 드리겠으며, 본사 실책으로 인한 기회손실에 대한 지원책은 담당 SV를 통해 정식으로 논의해 안내드리겠습니다.",
+        reaction: "점주 진정 & 감동: '오전 일찍 물건이 안 와 막막했는데, 이렇게 긴급차를 섭외해 해결해 주니 마음이 놓이네요. 11시 전까지는 꼭 와 주세요.'"
+      }
+    },
+    {
+      scenario: "매장 내 천장 누수 피해",
+      bad: {
+        text: "점포 누수 피해 건은 건물 외벽이나 옥상 결함으로 보이므로 임대인 측과 소송 또는 배상 협의를 하셔야 합니다. 본사 시설 관리 지원 규정 외 범위입니다.",
+        reaction: "점주 분노 폭발: '본사 브랜드 믿고 로열티 내가며 장사하는데, 물 새는 피해를 나 몰라라 하고 건물주랑 알아서 싸우라니 무책임의 극치네요!'"
+      },
+      good: {
+        text: "점장님, 매장 천장 누수로 소중한 가공 식품 기물 피해와 전기 합선 위험까지 겹쳐서 극도로 불안하고 막막하셨을 마음에 깊은 위로를 드립니다. 고객 안전이 최우선이므로, 즉각 본사 긴급 하자보수 엔지니어를 점포에 1시간 내로 투입하여 배선 안전 점검과 임시 보수를 시행하겠습니다. 이후 건물 임대인과의 피해액 보상 등 골치 아픈 협상도 본사 상생 지원팀이 밀착 조율해 부담을 최소화해 드리겠습니다.",
+        reaction: "점주 진정 & 감동: '혼자 건물주 상대하기도 힘들고 매장이 엉망이 되어 막막했는데, 본사에서 기사님도 빨리 보내주고 조율도 도와준다니 든든하네요.'"
+      }
     }
   ];
 
@@ -578,7 +600,7 @@ export default function App() {
                 {/* Strength 4 */}
                 <div className="bg-[#f8f9fc] border border-slate-200/50 rounded-3xl p-8 hover:shadow-xl hover:shadow-slate-100 transition-all duration-300 flex flex-col justify-between">
                   <div className="space-y-4">
-                    <div className="w-12 h-12 rounded-2xl bg-amber-50 text-white flex items-center justify-center shadow-lg shadow-amber-500/20">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-lg shadow-amber-500/20">
                       <Zap className="w-6 h-6" />
                     </div>
                     <div className="space-y-2">
@@ -648,7 +670,7 @@ export default function App() {
                         <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
                         일반 기계적인 답변 (Before)
                       </div>
-                      <div className="bg-black/20 rounded-2xl p-5 border border-white/5 text-xs sm:text-sm text-slate-300 leading-relaxed italic">
+                      <div className="bg-black/20 rounded-2xl p-5 border border-white/5 text-xs sm:text-sm text-slate-300 leading-relaxed">
                         {simulatedConversations[activeSimId].bad.text}
                       </div>
                     </div>
@@ -665,7 +687,7 @@ export default function App() {
                         <span className="w-2.5 h-2.5 rounded-full bg-blue-400 animate-pulse" />
                         어시스턴트 맞춤 정서 케어 (After)
                       </div>
-                      <div className="bg-blue-900/10 rounded-2xl p-5 border border-blue-500/20 text-xs sm:text-sm text-white leading-relaxed italic font-medium">
+                      <div className="bg-blue-900/10 rounded-2xl p-5 border border-blue-500/20 text-xs sm:text-sm text-white leading-relaxed font-medium">
                         "{simulatedConversations[activeSimId].good.text}"
                       </div>
                     </div>
@@ -681,30 +703,30 @@ export default function App() {
                   
                   <div className="space-y-3 border-t border-white/10 pt-6">
                     <span className="text-4xl sm:text-5xl lg:text-6xl font-light font-display">200+</span>
-                    <div className="flex items-center justify-between text-slate-400 text-xs tracking-wider">
+                    <div className="flex items-center justify-between text-slate-200 text-sm font-medium tracking-wide">
                       <span>누적 케어 케이스</span>
-                      <div className="w-6 h-6 rounded-full border border-white/20 flex items-center justify-center">
-                        <ArrowRight className="w-3.5 h-3.5 text-white/60" />
+                      <div className="w-6 h-6 rounded-full border border-white/30 flex items-center justify-center bg-white/5">
+                        <ArrowRight className="w-3.5 h-3.5 text-white/80" />
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-3 border-t border-white/10 pt-6">
                     <span className="text-4xl sm:text-5xl lg:text-6xl font-light font-display">97%</span>
-                    <div className="flex items-center justify-between text-slate-400 text-xs tracking-wider">
+                    <div className="flex items-center justify-between text-slate-200 text-sm font-medium tracking-wide">
                       <span>고객 신뢰 회복율</span>
-                      <div className="w-6 h-6 rounded-full border border-white/20 flex items-center justify-center">
-                        <ArrowRight className="w-3.5 h-3.5 text-white/60" />
+                      <div className="w-6 h-6 rounded-full border border-white/30 flex items-center justify-center bg-white/5">
+                        <ArrowRight className="w-3.5 h-3.5 text-white/80" />
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-3 border-t border-white/10 pt-6">
                     <span className="text-4xl sm:text-5xl lg:text-6xl font-light font-display">10X</span>
-                    <div className="flex items-center justify-between text-slate-400 text-xs tracking-wider">
+                    <div className="flex items-center justify-between text-slate-200 text-sm font-medium tracking-wide">
                       <span>실무 업무 효율 개선</span>
-                      <div className="w-6 h-6 rounded-full border border-white/20 flex items-center justify-center">
-                        <ArrowRight className="w-3.5 h-3.5 text-white/60" />
+                      <div className="w-6 h-6 rounded-full border border-white/30 flex items-center justify-center bg-white/5">
+                        <ArrowRight className="w-3.5 h-3.5 text-white/80" />
                       </div>
                     </div>
                   </div>
@@ -1473,7 +1495,7 @@ export default function App() {
 
                                   {/* Custom visualization styling based on media type */}
                                   {draft.type === "전화 스크립트" ? (
-                                    <div className="bg-[#f0f4fa]/50 rounded-2xl p-6 border border-blue-100/50 text-slate-800 leading-relaxed italic text-xs sm:text-sm font-medium">
+                                    <div className="bg-[#f0f4fa]/50 rounded-2xl p-6 border border-blue-100/50 text-slate-800 leading-relaxed text-xs sm:text-sm font-medium">
                                       "{replacedContent}"
                                     </div>
                                   ) : draft.type === "이메일" ? (
