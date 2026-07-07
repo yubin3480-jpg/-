@@ -132,7 +132,7 @@ export default function App() {
     setKeyValidationMsg({ status: null, text: "" });
   };
 
-  // Validate the API key with the backend
+  // Validate the API key with the backend or direct fallback (useful for static Vercel deployments)
   const validateApiKey = async (keyToValidate: string) => {
     const trimmed = keyToValidate.trim();
     if (!trimmed) {
@@ -143,20 +143,64 @@ export default function App() {
     setKeyValidationMsg({ status: null, text: "" });
 
     try {
-      const res = await fetch("/api/cs/validate-key", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: trimmed })
-      });
+      let isVerified = false;
+      let message = "";
 
-      const data = await res.json();
-      if (res.ok && data.success) {
+      // 1. Try backend verification first
+      try {
+        const res = await fetch("/api/cs/validate-key", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiKey: trimmed })
+        });
+
+        const text = await res.text();
+        try {
+          const data = JSON.parse(text);
+          if (res.ok && data.success) {
+            isVerified = true;
+            message = data.message || "API Key가 정상적으로 승인 및 저장되었습니다.";
+          } else {
+            message = data.error || "유효하지 않은 API Key이거나 네트워크 인증 오류입니다.";
+          }
+        } catch {
+          // If response is not valid JSON, backend is probably not available (e.g. static host like Vercel)
+          throw new Error("Backend returned non-JSON response");
+        }
+      } catch (backendErr) {
+        console.warn("Backend validation failed or unavailable. Falling back to client-side direct validation...", backendErr);
+        
+        // 2. Client-side direct fallback validation (direct request to Google API)
+        const clientRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${trimmed}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "Hi, reply with exactly the word OK" }] }]
+          })
+        });
+
+        if (clientRes.ok) {
+          const clientData = await clientRes.json();
+          const text = clientData.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          if (text) {
+            isVerified = true;
+            message = "API Key가 클라이언트-구글 서버 직접 연동을 통해 정상 승인되었습니다!";
+          } else {
+            message = "인증에는 성공했으나 예상치 못한 응답이 발생했습니다.";
+          }
+        } else {
+          const errData = await clientRes.json().catch(() => ({}));
+          message = errData.error?.message || "유효하지 않은 API Key이거나 구글 서버 인증에 실패했습니다.";
+        }
+      }
+
+      if (isVerified) {
         localStorage.setItem("user_gemini_api_key", trimmed);
         setSavedApiKey(trimmed);
         setUserApiKey(trimmed);
-        setKeyValidationMsg({ status: "success", text: data.message || "API Key가 정상적으로 승인 및 저장되었습니다." });
+        setKeyValidationMsg({ status: "success", text: message });
       } else {
-        setKeyValidationMsg({ status: "error", text: data.error || "유효하지 않은 API Key이거나 네트워크 인증 오류입니다." });
+        setKeyValidationMsg({ status: "error", text: message });
       }
     } catch (e: any) {
       setKeyValidationMsg({ status: "error", text: e.message || "인증 처리 도중 예외가 발생했습니다." });
@@ -270,23 +314,154 @@ export default function App() {
         headers["x-gemini-api-key"] = storedKey.trim();
       }
 
-      const response = await fetch("/api/cs/generate", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          category: input.category,
-          summary: finalSummary,
-          request: input.request,
-          specialNotes: input.specialNotes,
-          preferredFormat: input.preferredFormat
-        })
-      });
+      let data: CSResult | null = null;
+      let useClientSideFallback = false;
 
-      if (!response.ok) {
-        throw new Error("서버 응답 오류가 발생했습니다.");
+      // 1. Try backend generation first
+      try {
+        const response = await fetch("/api/cs/generate", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            category: input.category,
+            summary: finalSummary,
+            request: input.request,
+            specialNotes: input.specialNotes,
+            preferredFormat: input.preferredFormat
+          })
+        });
+
+        if (response.ok) {
+          const text = await response.text();
+          try {
+            data = JSON.parse(text);
+          } catch {
+            useClientSideFallback = true;
+          }
+        } else {
+          useClientSideFallback = true;
+        }
+      } catch (err) {
+        useClientSideFallback = true;
       }
 
-      const data: CSResult = await response.json();
+      // 2. Client-side direct generation fallback if backend failed/unavailable and key is stored
+      if (useClientSideFallback && storedKey) {
+        console.log("Using client-side Gemini fallback generation...");
+        const systemInstruction = `
+당신은 편의점 및 프랜차이즈 가맹점 관리에 특화된 고객 중심(Customer-centric) 전문 영업관리 CS 어시스턴트입니다.
+표면적 불만이나 요구사항 접수를 넘어, 점주와 거래처의 숨겨진 니즈(Hidden Needs) — 매출 타격, 본사와의 신뢰, 고객 이탈 우려 등 —를 선제적으로 파악하여 감정적 스트레스를 줄이고 원활한 합의점을 도출합니다.
+
+다음 단계를 거쳐 구조화된 응대 가이드를 생성하십시오.
+
+1단계: 입력값 확인 및 애매함 판단 (isInputAmbiguous)
+- **중요**: isInputAmbiguous는 입력 정보가 지나치게 부족하여(예: 빈칸이거나 단어 1~2개만 존재하여) 어떤 정황인지 유추가 아예 불가능한 최악의 극단적 상황에서만 true로 설정해야 합니다.
+- 사용자가 최소한의 단어(예: "기기 고장", "정산")나 대략적인 문장을 적었다면, 절대 추가 질문을 던지지 말고 **적극적으로 전문 영업관련 지식을 발휘하여 유추해내고 즉시 완성된 응대 초안들을 제공(isInputAmbiguous = false)**해야 합니다. 사용자를 번거롭게 질문으로 방해하지 않는 것이 최고의 사용자 경험입니다.
+- isInputAmbiguous가 false인 경우, clarificationQuestions는 반드시 빈 배열 []이어야 합니다.
+
+2단계: 숨겨진 니즈 및 심각도 분석
+- 문제의 심각도(낮음, 보통, 높음, 매우 높음)와 점주가 실질적으로 가장 우려하는 지점(detectedNeeds)을 정성껏 파악합니다.
+- '가맹점주 특이사항'(예: 스트레스 극심, 반복 민원 등)이 있다면 공감 표현의 강도를 최고조로 조절합니다.
+
+3단계: 리스크 신호 감지 (안전장치)
+- 아래 신호가 감지되면 riskWarnings 리스트에 추가하고, markdownOutput 상단에 적절한 경고 배지를 추가합니다.
+  - 위약금 언급 및 손해배상 청구 위협 → "⚠️ 가맹점주가 위약금 및 손해배상 소송을 구체적으로 고지하여 법적 대응 리스크가 감지되었습니다. 즉시 상급자에게 공문 형태 보고를 개시하세요"
+  - 인터넷 커뮤니티, 언론 뉴스 투고, SNS 폭로 조짐 → "⚠️ 온라인 유포 및 언론 제보 가능성이 감지되었습니다. 본사 브랜드 가치 훼손 방지를 위해 홍보팀/법무팀과 실시간 정보 공유 채널을 개설하십시오"
+  - 가맹점주 자해, 본사 앞 시위, 점포 폐쇄 실력 행사 정황 → "⚠️ 극단적인 실력 행사(점포 점거, 자해 소동 등) 조짐이 나타났습니다. 현장 직접 조사는 반드시 2인 1조로 수반하여야 하며 안전 지침을 준수하십시오"
+
+4단계: 솔루션 및 대안 가이드라인 도출
+- 규정상 즉각 수용 가능한 부분은 명확히 안내하고, 어려운 부분은 정중한 거절 + 합리적 대안을 제시합니다.
+- 본사 정책이나 금전적 보상안을 임의로 지어내지 않습니다. 확정되지 않은 사항은 "확인 후 [담당팀]과 협의하여 재안내드리겠습니다" 형태로 처리합니다.
+
+5단계: 매체별 작성 규칙 및 분량 한계 (매우 중요)
+- **최상의 생성 속도와 가독성을 위해 불필요하게 장황한 살붙이기는 배제하고, 핵심 공감 및 명확한 실무 조치(3~4문장 내외) 위주로 조밀하게 작성하십시오.**
+- **전화 응대 스크립트**: 구어체, [도입 및 진심 어린 공감 → 상황·요청사항 검토 결과 → 해결책/대안 제시 → 정중한 마무리] 흐름으로 3~4문장 내외로 자연스럽고 임팩트 있게 구성합니다.
+- **이메일 초안**: 격식 있는 문어체, [제목 → 공감 인사말 → 검토 결과 및 대안 조치 → 향후 이행 계획 → 끝맺음] 구조로 간략하고 깔끔하게 작성합니다.
+- **문자/카톡 메시지**: 3문장 이내로 신속 전파가 가능하도록 모바일 최적화된 형태로 핵심만 압축해 작성합니다.
+- 확인이 필요한 담당자명, 시간, 정확한 수치는 [ ] 괄호로 표시하여 사용자가 직접 채우게 합니다.
+
+6단계: 마크다운 리포트 (markdownOutput) 작성 규칙
+- 마크다운으로 출력하며, 상단에 **문의 유형 / 선택한 응대 형식과 이유**를 한 줄로 간결히 명시합니다.
+- 리스크 경고 배지가 있다면 그 아래 줄에 표시하고, 각 매체별 초안을 Heading(### 전화 응대 스크립트 등)으로 구분하여 정중하고 깔끔하게 제시합니다.
+
+제약 사항 및 속도 최적화:
+- 중복 표현을 피하고, 3~4문장 내외로 신선하고 가독성이 뛰어난 초안을 만들어 내어 전체 생성 토큰 수를 줄임으로써 로딩 시간을 극단적으로 단축해야 합니다.
+- 존댓말을 정교하게 사용하고 가맹점주를 파트너로서 존중하는 최상급 비즈니스 에티켓을 유지합니다.
+`;
+
+        const userPrompt = `
+[Input]
+- 문의/클레임 유형: ${input.category || "미지정"}
+- 상황 요약: ${finalSummary || "미정 (즉각 대처 요구)"}
+- 점주/거래처 요청사항: ${input.request || "미정 (AI 추천안 수립)"}
+- 가맹점주 특이사항: ${input.specialNotes || "없음"}
+- 원하는 응대 형식: ${input.preferredFormat || "미지정 (AI 판단)"}
+`;
+
+        const clientRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${storedKey.trim()}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [
+              { parts: [{ text: systemInstruction }] },
+              { parts: [{ text: userPrompt }] }
+            ],
+            generationConfig: {
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: "OBJECT",
+                required: [
+                  "isInputAmbiguous",
+                  "clarificationQuestions",
+                  "detectedNeeds",
+                  "severity",
+                  "riskWarnings",
+                  "responseFormatReasoning",
+                  "markdownOutput",
+                  "drafts"
+                ],
+                properties: {
+                  isInputAmbiguous: { type: "BOOLEAN" },
+                  clarificationQuestions: { type: "ARRAY", items: { type: "STRING" } },
+                  detectedNeeds: { type: "STRING" },
+                  severity: { type: "STRING" },
+                  riskWarnings: { type: "ARRAY", items: { type: "STRING" } },
+                  responseFormatReasoning: { type: "STRING" },
+                  markdownOutput: { type: "STRING" },
+                  drafts: {
+                    type: "ARRAY",
+                    items: {
+                      type: "OBJECT",
+                      required: ["type", "title", "content"],
+                      properties: {
+                        type: { type: "STRING" },
+                        title: { type: "STRING" },
+                        content: { type: "STRING" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          })
+        });
+
+        if (!clientRes.ok) {
+          const errBody = await clientRes.json().catch(() => ({}));
+          throw new Error(errBody.error?.message || "구글 Gemini 직접 호출에 실패했습니다.");
+        }
+
+        const clientJson = await clientRes.json();
+        const textResponse = clientJson.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+        data = JSON.parse(textResponse);
+      } else if (useClientSideFallback && !storedKey) {
+        throw new Error("서버 오류가 발생했으며, 등록된 개인 API Key가 없습니다.");
+      }
+
+      if (!data) {
+        throw new Error("서버 응답 파싱 및 생성에 실패했습니다.");
+      }
+
       setResult(data);
       
       if (!data.isInputAmbiguous) {
