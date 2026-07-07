@@ -404,16 +404,6 @@ export default function App() {
         {/* Tab Selection for Landing vs Workspace in Tirtus Pill Style */}
         <div className="flex items-center gap-1.5 sm:gap-3">
           <button
-            onClick={() => setViewMode("workspace")}
-            className={`px-4 py-2 rounded-full text-xs font-bold tracking-tight transition-all cursor-pointer ${
-              viewMode === "workspace"
-                ? "bg-slate-900 text-white shadow-lg shadow-slate-900/10"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            워크스페이스
-          </button>
-          <button
             onClick={() => setViewMode("landing")}
             className={`px-4 py-2 rounded-full text-xs font-bold tracking-tight transition-all cursor-pointer flex items-center gap-1.5 ${
               viewMode === "landing"
@@ -422,7 +412,17 @@ export default function App() {
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
-            <span>서비스 소개 및 강점</span>
+            <span>서비스 소개</span>
+          </button>
+          <button
+            onClick={() => setViewMode("workspace")}
+            className={`px-4 py-2 rounded-full text-xs font-bold tracking-tight transition-all cursor-pointer ${
+              viewMode === "workspace"
+                ? "bg-slate-900 text-white shadow-lg shadow-slate-900/10"
+                : "text-slate-600 hover:bg-slate-100"
+            }`}
+          >
+            워크스페이스
           </button>
           
           <div className="h-4 w-px bg-slate-200 mx-1" />
